@@ -1,35 +1,39 @@
-# Hold the Essential Key to talk to your AI
+# Press the Essential Key to talk to your AI
 
 **A design brief from a Nothing Phone (3a) Pro owner, with a working prototype.**
 Repo: https://github.com/T-339/phone-bridge (GitHub: T-339)
 
 ## The idea in one line
 
-Hold the Essential Key and talk: your phone wakes, opens your AI assistant (here, Claude), starts listening,
-and gives one short buzz when it's ready. Let go and it stops. No unlocking, no hunting for a mic button,
-no looking at the screen.
+Press the Essential Key and talk: your phone wakes, opens your AI assistant (here, Claude), starts listening,
+and gives one short buzz when it's ready. Press again and your message is sent. No unlocking, no hunting for
+a mic button, no looking at the screen.
 
 ## Why the Essential Key is right for this
 
 - **It's a dedicated, physical button that nothing else uses.** It can be found by touch, in a pocket,
   while driving or with your hands full.
-- **"Hold to talk" fits a button.** Everyone understands walkie-talkie behaviour: press, speak, release.
+- **"Press to talk, press to send" fits a button.** It's simple, it can be done by feel, and it works the same
+  whatever state the phone is in.
 - **It matches Nothing's direction.** Essential Space already uses the key to capture things for AI. This
   lets you talk to an assistant directly, and the conversation continues in the app.
-- **It works alongside Essential Space.** A quick tap followed by a second press still opens Essential Space.
+- **It can live alongside Essential Space.** In the prototype a switch in the notification gives the key back.
 
 ## What it's like to use
 
 | You do | What happens |
 |---|---|
-| Hold the key (screen on or off) | Screen wakes if needed, Claude opens, voice input starts, **one buzz** = start talking |
-| Let go | Dictation stops and the message goes to Claude |
-| Tap, then press again within 2 s | Essential Space, as normal |
-| Single tap | Opens Claude |
+| Press the key (screen on or off) | Screen wakes if needed, Claude opens, voice input starts, **one buzz** = start talking |
+| Press it again | Dictation stops and the message is sent |
+| Start with "new chat, …" | A fresh chat opens and the rest of the sentence is sent there |
+| Say "cancel that" / "never mind" | Nothing is sent (two buzzes) |
 | Something goes wrong (e.g. phone securely locked) | **Two buzzes**, so you know not to talk |
 
-From pressing the key to the buzz takes about 0.6 s when Claude is already open, and about 1.7 s from a
-dark screen.
+From the press to the buzz takes about 0.5 s when the screen is on, and about 1.7 s from a dark screen.
+
+We first built **hold to talk** (release to stop). It worked well with the screen on, but from a dark screen the
+system uses the press to wake the phone and apps only see the release. So hold-to-talk can't be done reliably
+by an app, which is a good reason for Nothing to build it in.
 
 **Day-to-day notes:** *to be added after a few weeks of real use.*
 
@@ -45,13 +49,12 @@ Claude can operate the phone remotely, and the Essential Key feature is built on
    the event. That means an app can't block it. The workaround is Nothing's own setting:
    **Intelligence toolkit → Essential Key Settings → "Activate with Single Tap Before Use"**. With it on, a
    single press only arms the key, and Phone Bridge handles that press.
-3. **Starting voice.** On a hold of 0.4 s or more, the app opens Claude and taps its "Start speech input"
-   button. It watches for "Stop dictation" to appear, which shows that Claude is listening, then buzzes.
-   On release it taps "Stop dictation".
+3. **Starting voice.** On a press, the app opens Claude and taps its "Start speech input" button. It watches
+   for "Stop dictation" to appear, which shows that Claude is listening, then buzzes. On the next press it taps
+   "Stop dictation", waits for the text, checks for "new chat" or "cancel", and taps Send.
 4. **Screen off.** The app turns the screen on with a transparent activity (`setTurnScreenOn`,
-   `requestDismissKeyguard`). Sometimes the system uses the key-down only to wake the screen, so the app
-   sees just the release. In that case the hold becomes a toggle: release, wait for the buzz, talk, then
-   press again to stop.
+   `requestDismissKeyguard`). With the screen off, the system often uses the key-down only to wake the
+   screen, so the app treats a key-up with no key-down as a press.
 5. **Locking.** To make screen-off use practical, "Power button instantly locks" is turned off and the phone
    locks after a delay. The app adds a **Lock** button in its notification and a **Lock phone**
    Quick Settings tile for an immediate secure lock.
@@ -77,8 +80,8 @@ Hopefully these findings are useful to whoever owns the key at Nothing:
 - **An official Essential Key action: "Hold to talk to your assistant".** It would use Android's default
   digital assistant (the `ROLE_ASSISTANT` / voice interaction route), so it works with Claude, Gemini,
   ChatGPT or whatever the user picks, not just one app.
-- **Proper hold-to-talk:** listening starts while the key is held and stops on release, with a haptic
-  "listening" cue and a different one for errors.
+- **Proper hold-to-talk as well as press-to-talk:** listening starts while the key is held and stops on
+  release, even from a dark screen, with a haptic "listening" cue and a different one for errors.
 - **Works from a dark screen**, handling the lock screen the way the system already does for assistants.
   That would avoid the prototype's lock-delay compromise.
 - **Keeps Essential Space one gesture away** (for example tap-then-press, or a double press), so the key
@@ -87,6 +90,7 @@ Hopefully these findings are useful to whoever owns the key at Nothing:
 ## Limitations of the prototype
 
 - It finds Claude's buttons by their accessibility labels, so a Claude app update could break it.
+- Dictation picks up nearby voices, so it works best in a quiet place or with the mic close.
 - It needs an accessibility service, which is a powerful permission and not something to ask of everyone.
 - Using it from a dark screen relies on a lock delay of up to 30 minutes. A built-in version could do this
   safely.

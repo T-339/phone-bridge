@@ -1,0 +1,246 @@
+{
+ "tools": [
+  {
+   "name": "phone_status",
+   "description": "Check whether the phone is connected, and get its screen size, battery and the app in front.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {}
+   }
+  },
+  {
+   "name": "get_screen",
+   "description": "Read what is on the phone screen as a list of UI elements, each with an [id], text, type, flags and its bounds. Prefer this over screenshot: it is faster and the ids can be used with tap_element and type_text. Ids are only valid until the next get_screen call.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "all": {
+      "type": "boolean",
+      "description": "Include non-interactive layout elements too (default false)."
+     }
+    }
+   }
+  },
+  {
+   "name": "screenshot",
+   "description": "Take a screenshot of the phone (JPEG, downscaled). Use when get_screen is not enough, e.g. images, games or canvas apps. The reply states the scale factor to convert image pixels into screen pixels.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "max_size": {
+      "type": "integer",
+      "description": "Longest side in pixels (default 1000, max 1600)."
+     }
+    }
+   }
+  },
+  {
+   "name": "tap_element",
+   "description": "Tap a UI element by its id from the last get_screen call.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "integer"
+     },
+     "long": {
+      "type": "boolean",
+      "description": "Long-press instead of tap."
+     }
+    },
+    "required": [
+     "id"
+    ]
+   }
+  },
+  {
+   "name": "tap",
+   "description": "Tap at a screen position. Coordinates are real screen pixels (the same units get_screen reports).",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "x": {
+      "type": "number"
+     },
+     "y": {
+      "type": "number"
+     },
+     "long": {
+      "type": "boolean",
+      "description": "Long-press instead of tap."
+     }
+    },
+    "required": [
+     "x",
+     "y"
+    ]
+   }
+  },
+  {
+   "name": "swipe",
+   "description": "Swipe from (x1,y1) to (x2,y2). Coordinates are real screen pixels (the same units get_screen reports).",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "x1": {
+      "type": "number"
+     },
+     "y1": {
+      "type": "number"
+     },
+     "x2": {
+      "type": "number"
+     },
+     "y2": {
+      "type": "number"
+     },
+     "duration_ms": {
+      "type": "integer",
+      "description": "Default 300."
+     }
+    },
+    "required": [
+     "x1",
+     "y1",
+     "x2",
+     "y2"
+    ]
+   }
+  },
+  {
+   "name": "scroll",
+   "description": "Scroll the screen (or a scrollable element) up, down, left or right. 'down' shows content further down.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "direction": {
+      "type": "string",
+      "enum": [
+       "up",
+       "down",
+       "left",
+       "right"
+      ]
+     },
+     "id": {
+      "type": "integer",
+      "description": "Optional scrollable element id from get_screen."
+     }
+    },
+    "required": [
+     "direction"
+    ]
+   }
+  },
+  {
+   "name": "type_text",
+   "description": "Type text into a text field: the element with the given id, otherwise the focused field.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "text": {
+      "type": "string"
+     },
+     "id": {
+      "type": "integer"
+     },
+     "append": {
+      "type": "boolean",
+      "description": "Add to the existing text instead of replacing it."
+     },
+     "submit": {
+      "type": "boolean",
+      "description": "Press the keyboard's enter/send/search key afterwards."
+     }
+    },
+    "required": [
+     "text"
+    ]
+   }
+  },
+  {
+   "name": "press_key",
+   "description": "Press a system button.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "key": {
+      "type": "string",
+      "enum": [
+       "back",
+       "home",
+       "recents",
+       "notifications",
+       "quick_settings",
+       "enter",
+       "lock_screen",
+       "power_dialog"
+      ]
+     }
+    },
+    "required": [
+     "key"
+    ]
+   }
+  },
+  {
+   "name": "open_app",
+   "description": "Open an app by its name (e.g. 'Spotify') or package name.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  },
+  {
+   "name": "list_apps",
+   "description": "List installed launchable apps (name and package).",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "filter": {
+      "type": "string",
+      "description": "Only apps whose name or package contains this."
+     }
+    }
+   }
+  },
+  {
+   "name": "open_url",
+   "description": "Open a URL or deep link (https:, tel:, geo:, mailto: ...) on the phone.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "url": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "url"
+    ]
+   }
+  },
+  {
+   "name": "wait",
+   "description": "Wait a number of seconds (max 20) for something on the phone to load.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "seconds": {
+      "type": "number"
+     }
+    },
+    "required": [
+     "seconds"
+    ]
+   }
+  }
+ ],
+ "instructions": "These tools control the user's own Android phone through an accessibility-service app. Usual loop: get_screen -> act (tap_element / type_text / scroll / press_key) -> get_screen to check. Use screenshot only when the element list does not show what you need. Ask the user before sending messages, buying anything, deleting data or changing security settings."
+}

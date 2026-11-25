@@ -1,0 +1,49 @@
+name: Deploy Cloudflare relay
+
+on:
+  push:
+    branches: [main]
+    paths: ["cloudflare/**", ".github/workflows/deploy-cloudflare.yml"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check secrets are set
+        id: check
+        env:
+          T: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          A: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          S: ${{ secrets.BRIDGE_SECRET }}
+        run: |
+          if [ -z "$T" ] || [ -z "$A" ] || [ -z "$S" ]; then
+            echo "Add CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and BRIDGE_SECRET as repo secrets, then re-run."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.ok == 'true'
+
+      - name: Deploy
+        id: deploy
+        if: steps.check.outputs.ok == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: cloudflare
+          wranglerVersion: "4"
+          secrets: |
+            BRIDGE_SECRET
+        env:
+          BRIDGE_SECRET: ${{ secrets.BRIDGE_SECRET }}
+
+      - name: Show address (the secret part is NOT printed)
+        if: steps.check.outputs.ok == 'true'
+        run: |
+          echo "Relay deployed at: ${{ steps.deploy.outputs.deployment-url }}"
+          echo "App URL:       wss://<that host>/phone/<your BRIDGE_SECRET>"
+          echo "Claude URL:    https://<that host>/mcp/<your BRIDGE_SECRET>"

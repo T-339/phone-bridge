@@ -14,7 +14,20 @@ Claude ──HTTPS (MCP)──▶ Raspberry Pi relay ◀──WebSocket (outgoin
 
 ## Setup
 
-### 1. Pi (one time)
+Pick **one** relay: Cloudflare (nothing to run at home) or the Pi.
+
+### 1a. Cloudflare relay (no Pi needed)
+1. Create a free account at dash.cloudflare.com, open **Workers & Pages** once and pick a `workers.dev`
+   subdomain if it asks.
+2. **My Profile → API Tokens → Create Token → "Edit Cloudflare Workers"** template, then create it and copy the token.
+3. Copy your **Account ID** (on the Workers & Pages overview page, right-hand side).
+4. In this repo go to **Settings → Secrets and variables → Actions → New repository secret** and add:
+   `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `BRIDGE_SECRET` (a long random string).
+5. **Actions → Deploy Cloudflare relay → Run workflow**. The log shows the `…workers.dev` address.
+   - App URL: `wss://phone-bridge.<subdomain>.workers.dev/phone/<BRIDGE_SECRET>`
+   - Claude URL: `https://phone-bridge.<subdomain>.workers.dev/mcp/<BRIDGE_SECRET>`
+
+### 1b. Pi relay (one time)
 SSH into the Pi (e.g. from your phone with Termux or JuiceSSH), then run:
 ```bash
 git clone https://github.com/T-339/phone-bridge.git

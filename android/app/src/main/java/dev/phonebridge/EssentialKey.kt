@@ -2,7 +2,9 @@ package dev.phonebridge
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.app.KeyguardManager
 import android.content.Intent
+import android.os.PowerManager
 import android.graphics.Path
 import android.graphics.Rect
 import android.os.Handler
@@ -47,6 +49,8 @@ class EssentialKey(private val svc: AccessibilityService) {
     private var lastKeyAt = 0L
     private var lastShortUpAt = 0L
     private var passThrough = false     // this press belongs to Essential Space (tap, then press again)
+    private var toggleMode = false      // started from screen off: talk, then press again to stop
+    private var swallowUp = false       // the press that stopped toggle mode
 
     private val shortPressRunnable = Runnable {
         EventLog.add("essential  short press -> open Claude")
@@ -56,8 +60,25 @@ class EssentialKey(private val svc: AccessibilityService) {
     private val holdRunnable = Runnable {
         holdStarted = true
         EventLog.add("essential  hold -> open Claude and start voice")
-        openClaude()
-        waitForClaude(0)
+        startVoiceFlow()
+    }
+
+    /** Wakes the screen if needed, then opens Claude and starts voice. */
+    private fun startVoiceFlow() {
+        val pm = svc.getSystemService(PowerManager::class.java)
+        val km = svc.getSystemService(KeyguardManager::class.java)
+        if (km.isDeviceLocked) {
+            EventLog.add("essential  phone is locked (needs fingerprint/PIN) -> can't dictate")
+            buzz(false)
+            return
+        }
+        val delay = if (!pm.isInteractive || km.isKeyguardLocked) {
+            EventLog.add("essential  waking the screen")
+            svc.startActivity(Intent(svc, WakeActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION))
+            700L
+        } else 0L
+        main.postDelayed({ openClaude(); waitForClaude(0) }, delay)
     }
 
     fun isEssentialKey(e: KeyEvent) = e.keyCode == KeyEvent.KEYCODE_UNKNOWN && e.scanCode == SCAN_CODE
@@ -67,6 +88,14 @@ class EssentialKey(private val svc: AccessibilityService) {
         lastKeyAt = SystemClock.uptimeMillis()
         when (e.action) {
             KeyEvent.ACTION_DOWN -> if (!held) {
+                if (toggleMode) {
+                    // Started from screen off: this press stops the dictation.
+                    toggleMode = false
+                    swallowUp = true
+                    EventLog.add("essential  press -> stop dictation")
+                    stopVoice()
+                    return true
+                }
                 held = true
                 main.removeCallbacks(shortPressRunnable)
                 // Nothing's "Activate with Single Tap Before Use": a press within 2 s of a tap opens Essential Space.
@@ -82,6 +111,20 @@ class EssentialKey(private val svc: AccessibilityService) {
                 main.postDelayed(holdRunnable, HOLD_MS)
             }
             KeyEvent.ACTION_UP -> {
+                if (swallowUp) { swallowUp = false; return true }
+                if (!held) {
+                    // No key-down seen: the screen was off and the press went to waking it.
+                    val dur = e.eventTime - e.downTime
+                    EventLog.add("essential  key up without down (screen was off), held $dur ms")
+                    if (dur >= HOLD_MS) {
+                        EventLog.add("essential  screen-off hold -> wake, open Claude, talk, press again to stop")
+                        toggleMode = true
+                        holdStarted = true
+                        passThrough = false
+                        startVoiceFlow()
+                    }
+                    return true
+                }
                 held = false
                 main.removeCallbacks(holdRunnable)
                 if (passThrough) {
@@ -126,9 +169,9 @@ class EssentialKey(private val svc: AccessibilityService) {
     /** Polls until Claude's input bar is on screen, then starts voice. */
     private fun waitForClaude(tries: Int) {
         if (!holdStarted) return
-        val holdMode = Prefs.essentialVoiceMethod(svc) == Prefs.VOICE_HOLD_BOX
+        val holdMode = Prefs.essentialVoiceMethod(svc) == Prefs.VOICE_HOLD_BOX && !toggleMode
         // In hold-the-box mode there's no point starting once the key is already up.
-        if (holdMode && !held) { EventLog.add("essential  let go before Claude was ready"); return }
+        if (holdMode && !held && !toggleMode) { EventLog.add("essential  let go before Claude was ready"); return }
         val root = claudeRoot()
         if (root != null) {
             if (holdMode) {
@@ -142,7 +185,7 @@ class EssentialKey(private val svc: AccessibilityService) {
                     voiceActive = ok
                     EventLog.add("essential  tapped \"${desc(mic)}\" ok=$ok")
                     if (ok) waitForListening(0) else buzz(false)
-                    if (ok && !held) main.postDelayed({ release() }, 600)
+                    if (ok && !held && !toggleMode) main.postDelayed({ release() }, 600)
                     return
                 }
             }
@@ -181,7 +224,7 @@ class EssentialKey(private val svc: AccessibilityService) {
             buzz(true)
             return
         }
-        if (tries >= 40) { EventLog.add("essential  voice didn't seem to start"); buzz(false); return }
+        if (tries >= 60) { EventLog.add("essential  voice didn't seem to start"); buzz(false); toggleMode = false; return }
         main.postDelayed({ waitForListening(tries + 1) }, 75)
     }
 
@@ -224,6 +267,10 @@ class EssentialKey(private val svc: AccessibilityService) {
 
     private fun release() {
         if (Prefs.essentialVoiceMethod(svc) == Prefs.VOICE_HOLD_BOX) return // gesture loop lifts itself
+        stopVoice()
+    }
+
+    private fun stopVoice() {
         if (!voiceActive) return
         voiceActive = false
         main.postDelayed({
@@ -242,15 +289,20 @@ class EssentialKey(private val svc: AccessibilityService) {
     // ---------- node helpers ----------
 
     private fun claudeRoot(): AccessibilityNodeInfo? =
-        svc.windows.firstNotNullOfOrNull { w -> w.root?.takeIf { it.packageName == CLAUDE_PKG } }
-            ?: svc.rootInActiveWindow?.takeIf { it.packageName == CLAUDE_PKG }
+        (svc.windows.firstNotNullOfOrNull { w -> w.root?.takeIf { it.packageName == CLAUDE_PKG } }
+            ?: svc.rootInActiveWindow?.takeIf { it.packageName == CLAUDE_PKG })
+            ?.also { try { it.refresh() } catch (_: Exception) {} }
 
     private fun desc(n: AccessibilityNodeInfo) = (n.contentDescription ?: n.text ?: "").toString()
 
     private fun find(n: AccessibilityNodeInfo?, pred: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
         if (n == null) return null
         if (n.isVisibleToUser && pred(n)) return n
-        for (i in 0 until n.childCount) find(n.getChild(i), pred)?.let { return it }
+        for (i in 0 until n.childCount) {
+            val c = n.getChild(i) ?: continue
+            try { c.refresh() } catch (_: Exception) {}
+            find(c, pred)?.let { return it }
+        }
         return null
     }
 

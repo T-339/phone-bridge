@@ -38,6 +38,9 @@ before the tool existed.
 
 - Vibration: one buzz when Claude's "Stop dictation" appears (listening), two if voice didn't start.
 
+- Screen off: the key-down is used by the system to wake the screen, so only key-UP reaches the app
+  (duration from event.downTime). Then "toggle mode": wake + open Claude + start voice; next press stops it.
+
 ## Screen off / locking
 - Phone settings: "Power button instantly locks" OFF, "Lock after screen timeout" long, so the power button
   only turns the screen off. Lock on purpose with the notification's **Lock** button, the **Lock phone** QS tile,

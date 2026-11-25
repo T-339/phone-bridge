@@ -7,7 +7,11 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
+import android.os.Build
 import android.os.SystemClock
+import android.os.VibrationAttributes
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
@@ -137,6 +141,7 @@ class EssentialKey(private val svc: AccessibilityService) {
                     val ok = click(mic)
                     voiceActive = ok
                     EventLog.add("essential  tapped \"${desc(mic)}\" ok=$ok")
+                    if (ok) waitForListening(0) else buzz(false)
                     if (ok && !held) main.postDelayed({ release() }, 600)
                     return
                 }
@@ -144,6 +149,7 @@ class EssentialKey(private val svc: AccessibilityService) {
         }
         if (tries >= 30) {
             EventLog.add("essential  gave up: Claude's reply box/mic not found")
+            buzz(false)
             dumpButtons()
             return
         }
@@ -161,6 +167,35 @@ class EssentialKey(private val svc: AccessibilityService) {
         val path = Path().apply { moveTo(p.first, p.second) }
         val s = GestureDescription.StrokeDescription(path, 0, SEGMENT_MS, true)
         dispatch(s)
+        main.postDelayed({ if (voiceActive) buzz(true) }, 500)
+    }
+
+    // ---------- vibration: one buzz = listening, two = voice didn't start ----------
+
+    /** Claude shows "Stop dictation" once it is actually listening. */
+    private fun waitForListening(tries: Int) {
+        val root = claudeRoot()
+        val stop = root?.let { r -> find(r) { n -> val d = desc(n); !d.contains("responding", true) && STOP_WORDS.containsMatchIn(d) } }
+        if (stop != null) {
+            EventLog.add("essential  listening (\"${desc(stop)}\" showing) -> buzz")
+            buzz(true)
+            return
+        }
+        if (tries >= 40) { EventLog.add("essential  voice didn't seem to start"); buzz(false); return }
+        main.postDelayed({ waitForListening(tries + 1) }, 75)
+    }
+
+    private fun buzz(ok: Boolean) {
+        try {
+            val v = svc.getSystemService(Vibrator::class.java) ?: return
+            val effect = if (ok) VibrationEffect.createOneShot(60, VibrationEffect.DEFAULT_AMPLITUDE)
+                         else VibrationEffect.createWaveform(longArrayOf(0, 70, 90, 70), -1)
+            if (Build.VERSION.SDK_INT >= 33) {
+                v.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ACCESSIBILITY))
+            } else {
+                @Suppress("DEPRECATION") v.vibrate(effect)
+            }
+        } catch (e: Exception) { EventLog.add("essential  couldn't vibrate: ${e.message}") }
     }
 
     private fun dispatch(s: GestureDescription.StrokeDescription) {

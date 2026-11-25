@@ -103,7 +103,7 @@ class MainActivity : Activity() {
             }
         }
         col.addView(keySwitch, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        label("Hold to dictate to Claude, and let go to stop. A single tap opens Claude after 2 s. " +
+        label("Hold to dictate to Claude (one buzz = listening, two = it didn't start), and let go to stop. A single tap opens Claude after 2 s. " +
             "With Nothing's \"Activate with Single Tap Before Use\" on, tap then press again for Essential Space. " +
             "You can also switch this with the button in the Phone Bridge notification.")
         listOf(Prefs.VOICE_TAP_MIC to "Voice: tap Claude's mic button",

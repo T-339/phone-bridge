@@ -89,6 +89,11 @@ class EssentialKey(private val svc: AccessibilityService) {
         lastKeyAt = SystemClock.uptimeMillis()
         when (e.action) {
             KeyEvent.ACTION_DOWN -> if (!held) {
+                if (toggleMode && !isListening()) {
+                    // Claude stopped listening by itself; treat this as a fresh press.
+                    toggleMode = false
+                    EventLog.add("essential  dictation had already stopped -> normal press")
+                }
                 if (toggleMode) {
                     // Started from screen off: this press stops the dictation.
                     toggleMode = false
@@ -291,7 +296,10 @@ class EssentialKey(private val svc: AccessibilityService) {
     // ---------- after dictation: send, new chat, cancel ----------
 
     private val NEW_CHAT = Regex("^\\s*new\\s+(chat|conversation|session)\\b[\\s,.:;!?-]*(.*)$", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-    private val CANCEL = Regex("^\\s*(cancel|scratch that|never mind|nevermind)[\\s.!]*$", RegexOption.IGNORE_CASE)
+    private val CANCEL = Regex("^\\s*(cancel( that| it)?|scratch that|never ?mind|forget (it|that)|delete (it|that))[\\s.!]*$", RegexOption.IGNORE_CASE)
+
+    private fun isListening(): Boolean =
+        claudeRoot()?.let { r -> find(r) { n -> val d = desc(n); !d.contains("responding", true) && STOP_WORDS.containsMatchIn(d) } } != null
 
     private fun replyBox(root: AccessibilityNodeInfo) = find(root) { n -> n.isEditable }
 

@@ -43,7 +43,7 @@ before the tool existed.
 
 - Auto-send (setting, default on): after "Stop dictation" the app waits for the text, then taps Send.
   Text starting "new chat …" → app taps "New session", sends the rest there (or listens again if nothing
-  follows; press the key to stop+send). "cancel"/"scratch that" → clears the box, double buzz.
+  follows; press the key to stop+send). "cancel (that)"/"scratch that"/"never mind"/"forget it" → clears the box, double buzz.
 
 ## Screen off / locking
 - Phone settings: "Power button instantly locks" OFF, "Lock after screen timeout" long, so the power button

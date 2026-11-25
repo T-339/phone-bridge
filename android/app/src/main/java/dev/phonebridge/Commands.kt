@@ -35,7 +35,7 @@ class Commands(private val svc: AccessibilityService) {
     /** Elements from the last get_screen call; the list index is the id Claude uses. */
     private val nodes = ArrayList<AccessibilityNodeInfo>()
 
-    private val allowedWhenBlocked = setOf("phone_status", "press_key", "open_app", "list_apps")
+    private val allowedWhenBlocked = setOf("phone_status", "press_key", "open_app", "list_apps", "recent_events")
 
     fun run(tool: String, a: JSONObject): Result {
         val fg = foregroundPackage()
@@ -57,6 +57,7 @@ class Commands(private val svc: AccessibilityService) {
             "open_app" -> openApp(a.getString("name"))
             "list_apps" -> listApps(a.optString("filter", ""))
             "open_url" -> openUrl(a.getString("url"))
+            "recent_events" -> Result(EventLog.dump(a.optBoolean("clear", false)))
             else -> throw IllegalArgumentException("Unknown tool $tool")
         }
     }

@@ -11,6 +11,7 @@ import android.net.Network
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -62,7 +63,23 @@ class BridgeService : AccessibilityService() {
         connect()
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            EventLog.add("window  ${event.packageName} / ${event.className}")
+        }
+    }
+
+    /** Only observes buttons: always returns false so the system and other apps still get every press. */
+    override fun onKeyEvent(event: KeyEvent): Boolean {
+        val action = when (event.action) {
+            KeyEvent.ACTION_DOWN -> "down"
+            KeyEvent.ACTION_UP -> "up"
+            else -> "action=${event.action}"
+        }
+        EventLog.add("key     ${KeyEvent.keyCodeToString(event.keyCode)} (code ${event.keyCode}, scan ${event.scanCode}) " +
+            "$action repeat=${event.repeatCount}${if (event.isLongPress) " LONG" else ""}")
+        return false
+    }
     override fun onInterrupt() {}
 
     override fun onDestroy() {

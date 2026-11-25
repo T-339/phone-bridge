@@ -113,6 +113,12 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
     },
     {
+        "name": "recent_events",
+        "description": "Show the phone's recent hardware button presses (key codes) and app/screen changes, oldest first, with times.",
+        "inputSchema": {"type": "object", "properties": {
+            "clear": {"type": "boolean", "description": "Empty the log after reading."}}},
+    },
+    {
         "name": "wait",
         "description": "Wait a number of seconds (max 20) for something on the phone to load.",
         "inputSchema": {"type": "object", "properties": {"seconds": {"type": "number"}}, "required": ["seconds"]},

@@ -10,3 +10,4 @@ class_name = "Bridge"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Bridge"]
+

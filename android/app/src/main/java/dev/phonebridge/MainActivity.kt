@@ -14,8 +14,12 @@ import android.text.InputType
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import android.widget.Switch
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -77,6 +81,43 @@ class MainActivity : Activity() {
 
         label("3. Keep it connected in the background", bold = true)
         button("Allow running without battery limits") { askBatteryExemption() }
+
+        label("4. Essential Key", bold = true)
+        val methodGroup = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+        val closeBox = CheckBox(this).apply {
+            text = "If Essential Space still opens, close it"
+            isChecked = Prefs.essentialCloseOverlay(this@MainActivity)
+            setOnCheckedChangeListener { _, v -> Prefs.setEssentialCloseOverlay(this@MainActivity, v) }
+        }
+        fun syncEnabled(on: Boolean) {
+            for (i in 0 until methodGroup.childCount) methodGroup.getChildAt(i).isEnabled = on
+            closeBox.isEnabled = on
+        }
+        val keySwitch = Switch(this).apply {
+            text = "Hold Essential Key to talk to Claude (off = normal Essential Space)"
+            isChecked = Prefs.essentialToClaude(this@MainActivity)
+            setOnCheckedChangeListener { _, v ->
+                Prefs.setEssentialToClaude(this@MainActivity, v)
+                syncEnabled(v)
+                BridgeService.instance?.refreshNotification()
+            }
+        }
+        col.addView(keySwitch, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        label("Short press opens Claude. Hold to dictate, and let go to stop. " +
+            "You can also switch this with the button in the Phone Bridge notification.")
+        listOf(Prefs.VOICE_TAP_MIC to "Voice: tap Claude's mic button",
+               Prefs.VOICE_HOLD_BOX to "Voice: hold Claude's reply box while I hold the key").forEach { (id, t) ->
+            methodGroup.addView(RadioButton(this).apply {
+                this.id = 1000 + id; text = t
+                isChecked = Prefs.essentialVoiceMethod(this@MainActivity) == id
+            })
+        }
+        methodGroup.setOnCheckedChangeListener { _, checked ->
+            Prefs.setEssentialVoiceMethod(this@MainActivity, checked - 1000)
+        }
+        col.addView(methodGroup)
+        col.addView(closeBox)
+        syncEnabled(keySwitch.isChecked)
 
         label("Turn it off any time with \"Turn off\" in the Phone Bridge notification.")
 

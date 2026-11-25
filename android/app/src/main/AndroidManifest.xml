@@ -48,5 +48,9 @@
         <receiver
             android:name=".StopReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".EssentialToggleReceiver"
+            android:exported="false" />
     </application>
 </manifest>

@@ -52,6 +52,7 @@ class BridgeService : AccessibilityService() {
 
     lateinit var commands: Commands
         private set
+    private val essential by lazy { EssentialKey(this) }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -66,10 +67,14 @@ class BridgeService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             EventLog.add("window  ${event.packageName} / ${event.className}")
+            if (Prefs.essentialToClaude(this)) essential.onWindow(event.packageName?.toString())
         }
     }
 
-    /** Only observes buttons: always returns false so the system and other apps still get every press. */
+    /**
+     * Logs every button press. Returns false (the press goes on to the system as normal) for everything
+     * except the Essential Key while "Hold Essential Key to talk to Claude" is switched on.
+     */
     override fun onKeyEvent(event: KeyEvent): Boolean {
         val action = when (event.action) {
             KeyEvent.ACTION_DOWN -> "down"
@@ -78,8 +83,16 @@ class BridgeService : AccessibilityService() {
         }
         EventLog.add("key     ${KeyEvent.keyCodeToString(event.keyCode)} (code ${event.keyCode}, scan ${event.scanCode}) " +
             "$action repeat=${event.repeatCount}${if (event.isLongPress) " LONG" else ""}")
+        if (essential.isEssentialKey(event) && Prefs.essentialToClaude(this)) {
+            return try { essential.onKey(event) } catch (e: Exception) {
+                EventLog.add("essential  error: ${e.message}")
+                false
+            }
+        }
         return false
     }
+
+    fun refreshNotification() = main.post { if (!stopped) showNotification(status) }
     override fun onInterrupt() {}
 
     override fun onDestroy() {
@@ -233,6 +246,8 @@ class BridgeService : AccessibilityService() {
         val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), flags)
         val stop = PendingIntent.getBroadcast(this, 1, Intent(this, StopReceiver::class.java), flags)
+        val toggle = PendingIntent.getBroadcast(this, 2, Intent(this, EssentialToggleReceiver::class.java), flags)
+        val keyLabel = if (Prefs.essentialToClaude(this)) "Essential Key: Claude" else "Essential Key: normal"
         val n = Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_manage)
             .setContentTitle("Phone Bridge")
@@ -240,6 +255,7 @@ class BridgeService : AccessibilityService() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(open)
+            .addAction(Notification.Action.Builder(null, keyLabel, toggle).build())
             .addAction(Notification.Action.Builder(null, "Turn off", stop).build())
             .build()
         try {

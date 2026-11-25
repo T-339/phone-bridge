@@ -10,6 +10,7 @@ import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
 import android.os.Build
+import android.os.Bundle
 import android.os.SystemClock
 import android.os.VibrationAttributes
 import android.os.VibrationEffect
@@ -279,11 +280,88 @@ class EssentialKey(private val svc: AccessibilityService) {
             if (stop != null) {
                 val ok = click(stop)
                 EventLog.add("essential  tapped \"${desc(stop)}\" to stop voice ok=$ok")
+                if (ok && Prefs.essentialAutoSend(svc)) main.postDelayed({ finishDictation(0) }, 250)
             } else {
                 EventLog.add("essential  no stop button found; buttons on screen:")
                 dumpButtons()
             }
         }, 150)
+    }
+
+    // ---------- after dictation: send, new chat, cancel ----------
+
+    private val NEW_CHAT = Regex("^\\s*new\\s+(chat|conversation|session)\\b[\\s,.:;!?-]*(.*)$", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+    private val CANCEL = Regex("^\\s*(cancel|scratch that|never mind|nevermind)[\\s.!]*$", RegexOption.IGNORE_CASE)
+
+    private fun replyBox(root: AccessibilityNodeInfo) = find(root) { n -> n.isEditable }
+
+    private fun boxText(box: AccessibilityNodeInfo): String =
+        if (box.isShowingHintText) "" else (box.text ?: "").toString().trim()
+
+    /** Waits for Claude to finish turning speech into text, then acts on it. */
+    private fun finishDictation(tries: Int) {
+        val root = claudeRoot()
+        val stillListening = root?.let { r -> find(r) { n -> val d = desc(n); !d.contains("responding", true) && STOP_WORDS.containsMatchIn(d) } } != null
+        val box = root?.let { replyBox(it) }
+        val text = box?.let { boxText(it) } ?: ""
+        if ((stillListening || text.isEmpty()) && tries < 25) {
+            main.postDelayed({ finishDictation(tries + 1) }, 120)
+            return
+        }
+        if (box == null || text.isEmpty()) { EventLog.add("essential  nothing to send"); return }
+        handleText(root, box, text)
+    }
+
+    private fun handleText(root: AccessibilityNodeInfo, box: AccessibilityNodeInfo, text: String) {
+        if (CANCEL.matches(text)) {
+            setText(box, "")
+            EventLog.add("essential  \"$text\" -> cleared, not sent")
+            buzz(false)
+            return
+        }
+        val m = NEW_CHAT.find(text)
+        if (m != null) {
+            val rest = m.groupValues[2].trim()
+            EventLog.add("essential  \"new chat\" -> opening a new chat" + if (rest.isNotEmpty()) " and sending the rest" else ", then listening")
+            setText(box, "")
+            val newBtn = find(root) { n -> desc(n).equals("New session", true) || desc(n).equals("New chat", true) }
+            if (newBtn == null) { EventLog.add("essential  New chat button not found"); dumpButtons(); buzz(false); return }
+            click(newBtn)
+            main.postDelayed({ afterNewChat(rest, 0) }, 600)
+            return
+        }
+        send(root)
+    }
+
+    private fun afterNewChat(rest: String, tries: Int) {
+        val root = claudeRoot()
+        val box = root?.let { replyBox(it) }
+        if (box == null) {
+            if (tries < 20) main.postDelayed({ afterNewChat(rest, tries + 1) }, 150)
+            else { EventLog.add("essential  new chat didn't open"); buzz(false) }
+            return
+        }
+        if (rest.isNotEmpty()) {
+            setText(box, rest)
+            main.postDelayed({ claudeRoot()?.let { send(it) } }, 300)
+        } else {
+            // Listen again in the new chat; press the key once to stop and send.
+            toggleMode = true
+            holdStarted = true
+            waitForClaude(0)
+        }
+    }
+
+    private fun send(root: AccessibilityNodeInfo) {
+        val btn = find(root) { n -> desc(n).startsWith("Send", true) }
+        if (btn == null) { EventLog.add("essential  Send button not found"); dumpButtons(); buzz(false); return }
+        val ok = click(btn)
+        EventLog.add("essential  tapped \"${desc(btn)}\" ok=$ok")
+    }
+
+    private fun setText(n: AccessibilityNodeInfo, t: String) {
+        val b = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, t) }
+        n.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, b)
     }
 
     // ---------- node helpers ----------

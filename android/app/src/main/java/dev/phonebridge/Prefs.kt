@@ -34,6 +34,10 @@ object Prefs {
     fun essentialVoiceMethod(c: Context): Int = sp(c).getInt("essential_voice", VOICE_TAP_MIC)
     fun setEssentialVoiceMethod(c: Context, v: Int) = sp(c).edit().putInt("essential_voice", v).apply()
 
+    /** Tap Send when dictation stops ("new chat …" and "cancel" are handled by the app). */
+    fun essentialAutoSend(c: Context): Boolean = sp(c).getBoolean("essential_send", true)
+    fun setEssentialAutoSend(c: Context, v: Boolean) = sp(c).edit().putBoolean("essential_send", v).apply()
+
     /** If Essential Space still opens despite the key being taken, close it. */
     fun essentialCloseOverlay(c: Context): Boolean = sp(c).getBoolean("essential_close", true)
     fun setEssentialCloseOverlay(c: Context, v: Boolean) = sp(c).edit().putBoolean("essential_close", v).apply()

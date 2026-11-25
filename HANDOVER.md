@@ -41,6 +41,10 @@ before the tool existed.
 - Screen off: the key-down is used by the system to wake the screen, so only key-UP reaches the app
   (duration from event.downTime). Then "toggle mode": wake + open Claude + start voice; next press stops it.
 
+- Auto-send (setting, default on): after "Stop dictation" the app waits for the text, then taps Send.
+  Text starting "new chat …" → app taps "New session", sends the rest there (or listens again if nothing
+  follows; press the key to stop+send). "cancel"/"scratch that" → clears the box, double buzz.
+
 ## Screen off / locking
 - Phone settings: "Power button instantly locks" OFF, "Lock after screen timeout" long, so the power button
   only turns the screen off. Lock on purpose with the notification's **Lock** button, the **Lock phone** QS tile,

@@ -89,7 +89,13 @@ class MainActivity : Activity() {
             isChecked = Prefs.essentialCloseOverlay(this@MainActivity)
             setOnCheckedChangeListener { _, v -> Prefs.setEssentialCloseOverlay(this@MainActivity, v) }
         }
+        val sendBox = CheckBox(this).apply {
+            text = "Send when I let go. Start with \"new chat\" for a fresh chat; say \"cancel\" to discard"
+            isChecked = Prefs.essentialAutoSend(this@MainActivity)
+            setOnCheckedChangeListener { _, v -> Prefs.setEssentialAutoSend(this@MainActivity, v) }
+        }
         fun syncEnabled(on: Boolean) {
+            sendBox.isEnabled = on
             for (i in 0 until methodGroup.childCount) methodGroup.getChildAt(i).isEnabled = on
             closeBox.isEnabled = on
         }
@@ -118,6 +124,7 @@ class MainActivity : Activity() {
             Prefs.setEssentialVoiceMethod(this@MainActivity, checked - 1000)
         }
         col.addView(methodGroup)
+        col.addView(sendBox)
         col.addView(closeBox)
         syncEnabled(keySwitch.isChecked)
 

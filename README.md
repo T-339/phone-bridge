@@ -2,6 +2,9 @@
 
 Lets Claude see and control your Android phone from any Claude conversation, with no PC needed.
 
+On Nothing phones it also turns the **Essential Key into a hold-to-talk button for Claude**. See
+[BRIEF.md](BRIEF.md) for the design brief.
+
 ```
 Claude ──HTTPS (MCP)──▶ Raspberry Pi relay ◀──WebSocket (outgoing)── Phone Bridge app
                          (Tailscale Funnel)                         (accessibility service)

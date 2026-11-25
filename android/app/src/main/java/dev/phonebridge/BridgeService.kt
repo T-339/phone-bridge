@@ -247,6 +247,7 @@ class BridgeService : AccessibilityService() {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), flags)
         val stop = PendingIntent.getBroadcast(this, 1, Intent(this, StopReceiver::class.java), flags)
         val toggle = PendingIntent.getBroadcast(this, 2, Intent(this, EssentialToggleReceiver::class.java), flags)
+        val lock = PendingIntent.getBroadcast(this, 3, Intent(this, LockReceiver::class.java), flags)
         val keyLabel = if (Prefs.essentialToClaude(this)) "Essential Key: Claude" else "Essential Key: normal"
         val n = Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_manage)
@@ -256,6 +257,7 @@ class BridgeService : AccessibilityService() {
             .setOnlyAlertOnce(true)
             .setContentIntent(open)
             .addAction(Notification.Action.Builder(null, keyLabel, toggle).build())
+            .addAction(Notification.Action.Builder(null, "Lock", lock).build())
             .addAction(Notification.Action.Builder(null, "Turn off", stop).build())
             .build()
         try {

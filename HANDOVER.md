@@ -36,6 +36,15 @@ before the tool existed.
   input", release = tap "Stop dictation". Single tap opens Claude after the 2 s window. A second press within 2 s is
   left to Essential Space. Voice method "hold the reply box" exists too but is untested.
 
+- Vibration: one buzz when Claude's "Stop dictation" appears (listening), two if voice didn't start.
+
+## Screen off / locking
+- Phone settings: "Power button instantly locks" OFF, "Lock after screen timeout" long, so the power button
+  only turns the screen off. Lock on purpose with the notification's **Lock** button, the **Lock phone** QS tile,
+  or "Lock now" in the app (all GLOBAL_ACTION_LOCK_SCREEN = immediate secure lock).
+- `Commands.ensureAwake()`: before most tools, if the screen is off it starts `WakeActivity` (turn screen on +
+  dismiss swipe keyguard). If `isDeviceLocked` (needs PIN/fingerprint) it returns a clear error instead.
+
 ## Original plan (history)
 **Goal:** holding the phone's **Essential Key** (Nothing hardware button) should open Claude and start voice
 input, so his speech goes to Claude. Right now a hold starts Nothing's own Essential Space dictation. That's

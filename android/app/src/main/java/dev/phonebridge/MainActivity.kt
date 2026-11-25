@@ -120,6 +120,12 @@ class MainActivity : Activity() {
         col.addView(closeBox)
         syncEnabled(keySwitch.isChecked)
 
+        label("5. Locking", bold = true)
+        label("Lock the phone straight away with \"Lock\" in the Phone Bridge notification, or add the " +
+            "\"Lock phone\" tile to Quick Settings (pull down twice, tap the pencil). " +
+            "When Claude needs the phone and the screen is off, it turns the screen on, unless the phone is properly locked.")
+        button("Lock now") { LockNow.lock(this) }
+
         label("Turn it off any time with \"Turn off\" in the Phone Bridge notification.")
 
         setContentView(ScrollView(this).apply { addView(col) })

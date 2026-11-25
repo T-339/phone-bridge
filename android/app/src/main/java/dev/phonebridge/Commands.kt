@@ -37,7 +37,11 @@ class Commands(private val svc: AccessibilityService) {
 
     private val allowedWhenBlocked = setOf("phone_status", "press_key", "open_app", "list_apps", "recent_events")
 
+    /** Tools that work fine with the screen off, so they don't wake the phone. */
+    private val noWake = setOf("phone_status", "recent_events", "list_apps")
+
     fun run(tool: String, a: JSONObject): Result {
+        if (tool !in noWake && !(tool == "press_key" && a.optString("key") == "lock_screen")) ensureAwake()
         val fg = foregroundPackage()
         if (fg != null && tool !in allowedWhenBlocked && fg in Prefs.blocklist(svc)) {
             throw IllegalStateException("$fg is on the blocked list in Phone Bridge, so Claude can't act in it. " +
@@ -60,6 +64,30 @@ class Commands(private val svc: AccessibilityService) {
             "recent_events" -> Result(EventLog.dump(a.optBoolean("clear", false)))
             else -> throw IllegalArgumentException("Unknown tool $tool")
         }
+    }
+
+    // ---------- wake ----------
+
+    /**
+     * If the screen is off (or on the swipe screen), turn it on and dismiss the swipe screen.
+     * If the phone is properly locked (needs PIN/fingerprint), say so instead of waking it in a pocket.
+     */
+    private fun ensureAwake() {
+        val pm = svc.getSystemService(PowerManager::class.java)
+        val km = svc.getSystemService(KeyguardManager::class.java)
+        if (pm.isInteractive && !km.isKeyguardLocked) return
+        if (km.isDeviceLocked) {
+            throw IllegalStateException("The phone is locked (needs your fingerprint or PIN), so Claude can't use it. " +
+                "Unlock it, or use \"Lock after screen timeout\" so turning the screen off doesn't lock it straight away.")
+        }
+        EventLog.add("wake    turning the screen on for Claude")
+        val i = Intent(svc, WakeActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        svc.startActivity(i)
+        val until = System.currentTimeMillis() + 3000
+        while (System.currentTimeMillis() < until && (!pm.isInteractive || km.isKeyguardLocked)) Thread.sleep(100)
+        Thread.sleep(400) // let the app behind redraw
+        if (!pm.isInteractive) throw IllegalStateException("Couldn't turn the screen on.")
     }
 
     // ---------- info ----------

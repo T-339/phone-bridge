@@ -1,4 +1,4 @@
-// Phone Bridge relay for Cloudflare Workers (alternative to the Pi relay).
+// Phone Bridge relay for Cloudflare Workers (alternative to the Pi relay). Deployed by GitHub Actions.
 //   /phone/<secret>  WebSocket the Android app keeps open
 //   /mcp/<secret>    MCP endpoint (streamable HTTP, JSON responses) for Claude
 // One Durable Object holds the phone's socket and forwards tool calls to it.

@@ -24,9 +24,9 @@ import android.view.accessibility.AccessibilityNodeInfo
  * The key arrives as KEYCODE_UNKNOWN (code 0) with scan code 250, so it is matched on the scan code.
  * When the feature is off, nothing here touches the key and Essential Space works as normal.
  * When it is on, the key is consumed (so Essential Space should not open), and:
- *   - hold                   -> open Claude and start voice input; letting go stops it
- *   - tap, then press again  -> left to Essential Space (with Nothing's "Activate with Single Tap Before Use" on)
- *   - single tap on its own  -> opens Claude once that 2 s window has passed
+ *   - press        -> wake if needed, open Claude, start voice input, one buzz = listening
+ *   - press again  -> stop and send ("new chat …" / "cancel" handled by the app)
+ * Essential Space: switch the key back to normal from the notification.
  */
 class EssentialKey(private val svc: AccessibilityService) {
 
@@ -53,23 +53,13 @@ class EssentialKey(private val svc: AccessibilityService) {
     private var toggleMode = false      // started from screen off: talk, then press again to stop
     private var swallowUp = false       // the press that stopped toggle mode
 
-    private val shortPressRunnable = Runnable {
-        EventLog.add("essential  short press -> open Claude")
-        openClaude()
-    }
-
-    private val holdRunnable = Runnable {
-        holdStarted = true
-        EventLog.add("essential  hold -> open Claude and start voice")
-        startVoiceFlow()
-    }
-
     /** Wakes the screen if needed, then opens Claude and starts voice. */
     private fun startVoiceFlow() {
         val pm = svc.getSystemService(PowerManager::class.java)
         val km = svc.getSystemService(KeyguardManager::class.java)
         if (km.isDeviceLocked) {
             EventLog.add("essential  phone is locked (needs fingerprint/PIN) -> can't dictate")
+            toggleMode = false
             buzz(false)
             return
         }
@@ -84,68 +74,41 @@ class EssentialKey(private val svc: AccessibilityService) {
 
     fun isEssentialKey(e: KeyEvent) = e.keyCode == KeyEvent.KEYCODE_UNKNOWN && e.scanCode == SCAN_CODE
 
-    /** Returns true to consume the key. Only called when the feature is on. */
+    private var downSeen = false
+
+    /**
+     * Returns true to consume the key. Only called when the feature is on.
+     * Press to talk, press again to send. A "press" is a key-down, or a key-up with no key-down before it
+     * (with the screen off the system uses the key-down to wake the screen, so only the key-up arrives).
+     */
     fun onKey(e: KeyEvent): Boolean {
         lastKeyAt = SystemClock.uptimeMillis()
         when (e.action) {
-            KeyEvent.ACTION_DOWN -> if (!held) {
-                if (toggleMode && !isListening()) {
-                    // Claude stopped listening by itself; treat this as a fresh press.
-                    toggleMode = false
-                    EventLog.add("essential  dictation had already stopped -> normal press")
-                }
-                if (toggleMode) {
-                    // Started from screen off: this press stops the dictation.
-                    toggleMode = false
-                    swallowUp = true
-                    EventLog.add("essential  press -> stop dictation")
-                    stopVoice()
-                    return true
-                }
-                held = true
-                main.removeCallbacks(shortPressRunnable)
-                // Nothing's "Activate with Single Tap Before Use": a press within 2 s of a tap opens Essential Space.
-                // Leave that press to Essential Space and don't close it.
-                passThrough = SystemClock.uptimeMillis() - lastShortUpAt < ARM_MS
-                if (passThrough) {
-                    EventLog.add("essential  second press within 2 s -> leaving it to Essential Space")
-                    return true
-                }
-                holdStarted = false
-                voiceActive = false
-                downAt = SystemClock.uptimeMillis()
-                main.postDelayed(holdRunnable, HOLD_MS)
-            }
-            KeyEvent.ACTION_UP -> {
-                if (swallowUp) { swallowUp = false; return true }
-                if (!held) {
-                    // No key-down seen: the screen was off and the press went to waking it.
-                    val dur = e.eventTime - e.downTime
-                    EventLog.add("essential  key up without down (screen was off), held $dur ms")
-                    if (dur >= HOLD_MS) {
-                        EventLog.add("essential  screen-off hold -> wake, open Claude, talk, press again to stop")
-                        toggleMode = true
-                        holdStarted = true
-                        passThrough = false
-                        startVoiceFlow()
-                    }
-                    return true
-                }
-                held = false
-                main.removeCallbacks(holdRunnable)
-                if (passThrough) {
-                    lastShortUpAt = 0L
-                } else if (!holdStarted) {
-                    // Wait until Nothing's 2 s window has passed, so tap-then-press can still reach Essential Space.
-                    lastShortUpAt = SystemClock.uptimeMillis()
-                    main.postDelayed(shortPressRunnable, ARM_MS)
-                } else {
-                    EventLog.add("essential  released after ${SystemClock.uptimeMillis() - downAt} ms")
-                    release()
-                }
-            }
+            KeyEvent.ACTION_DOWN -> if (e.repeatCount == 0 && !downSeen) { downSeen = true; press("down") }
+            KeyEvent.ACTION_UP -> if (downSeen) downSeen = false else press("up only, screen was off")
         }
         return true
+    }
+
+    private fun press(how: String) {
+        if (toggleMode && !voiceActive) {
+            EventLog.add("essential  press ($how) while still starting -> ignored")
+            return
+        }
+        if (toggleMode) {
+            toggleMode = false
+            if (isListening()) {
+                EventLog.add("essential  press ($how) -> stop and send")
+                stopVoice()
+                return
+            }
+            EventLog.add("essential  dictation had already stopped")
+        }
+        EventLog.add("essential  press ($how) -> open Claude and start voice")
+        toggleMode = true
+        holdStarted = true
+        voiceActive = false
+        startVoiceFlow()
     }
 
     /** Essential Space opened anyway (the system handled the key before us): close it and go back to Claude. */
@@ -189,6 +152,7 @@ class EssentialKey(private val svc: AccessibilityService) {
                 if (mic != null) {
                     val ok = click(mic)
                     voiceActive = ok
+                    if (!ok) toggleMode = false
                     EventLog.add("essential  tapped \"${desc(mic)}\" ok=$ok")
                     if (ok) waitForListening(0) else buzz(false)
                     if (ok && !held && !toggleMode) main.postDelayed({ release() }, 600)
@@ -198,6 +162,7 @@ class EssentialKey(private val svc: AccessibilityService) {
         }
         if (tries >= 30) {
             EventLog.add("essential  gave up: Claude's reply box/mic not found")
+            toggleMode = false
             buzz(false)
             dumpButtons()
             return

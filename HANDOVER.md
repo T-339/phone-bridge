@@ -45,6 +45,10 @@ before the tool existed.
   Text starting "new chat …" → app taps "New session", sends the rest there (or listens again if nothing
   follows; press the key to stop+send). "cancel (that)"/"scratch that"/"never mind"/"forget it" → clears the box, double buzz.
 
+- **Now press-to-talk, press-to-send everywhere** (user's choice, 25 Nov): hold-to-talk was unreliable
+  because with the screen off only key-up arrives. A "press" = key-down, or key-up with no key-down.
+  Essential Space only via the notification's "Essential Key: normal" switch.
+
 ## Screen off / locking
 - Phone settings: "Power button instantly locks" OFF, "Lock after screen timeout" long, so the power button
   only turns the screen off. Lock on purpose with the notification's **Lock** button, the **Lock phone** QS tile,

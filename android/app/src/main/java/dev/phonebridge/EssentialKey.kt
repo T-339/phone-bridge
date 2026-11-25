@@ -17,8 +17,9 @@ import android.view.accessibility.AccessibilityNodeInfo
  * The key arrives as KEYCODE_UNKNOWN (code 0) with scan code 250, so it is matched on the scan code.
  * When the feature is off, nothing here touches the key and Essential Space works as normal.
  * When it is on, the key is consumed (so Essential Space should not open), and:
- *   - short press  -> open Claude
- *   - hold         -> open Claude and start voice input; letting go stops it
+ *   - hold                   -> open Claude and start voice input; letting go stops it
+ *   - tap, then press again  -> left to Essential Space (with Nothing's "Activate with Single Tap Before Use" on)
+ *   - single tap on its own  -> opens Claude once that 2 s window has passed
  */
 class EssentialKey(private val svc: AccessibilityService) {
 
@@ -27,6 +28,7 @@ class EssentialKey(private val svc: AccessibilityService) {
         const val CLAUDE_PKG = "com.anthropic.claude"
         const val ESSENTIAL_PKG = "com.nothing.ntessentialrecorder"
         private const val HOLD_MS = 400L
+        private const val ARM_MS = 2000L
         private const val SEGMENT_MS = 300L
         private val STOP_WORDS = Regex("(?i)(stop (speech|dictat|listen|record|voice))|^done$|^finish|end voice|stop$")
     }
@@ -39,6 +41,13 @@ class EssentialKey(private val svc: AccessibilityService) {
     private var holdPoint: Pair<Float, Float>? = null
     private var currentStroke: GestureDescription.StrokeDescription? = null
     private var lastKeyAt = 0L
+    private var lastShortUpAt = 0L
+    private var passThrough = false     // this press belongs to Essential Space (tap, then press again)
+
+    private val shortPressRunnable = Runnable {
+        EventLog.add("essential  short press -> open Claude")
+        openClaude()
+    }
 
     private val holdRunnable = Runnable {
         holdStarted = true
@@ -55,6 +64,14 @@ class EssentialKey(private val svc: AccessibilityService) {
         when (e.action) {
             KeyEvent.ACTION_DOWN -> if (!held) {
                 held = true
+                main.removeCallbacks(shortPressRunnable)
+                // Nothing's "Activate with Single Tap Before Use": a press within 2 s of a tap opens Essential Space.
+                // Leave that press to Essential Space and don't close it.
+                passThrough = SystemClock.uptimeMillis() - lastShortUpAt < ARM_MS
+                if (passThrough) {
+                    EventLog.add("essential  second press within 2 s -> leaving it to Essential Space")
+                    return true
+                }
                 holdStarted = false
                 voiceActive = false
                 downAt = SystemClock.uptimeMillis()
@@ -63,9 +80,12 @@ class EssentialKey(private val svc: AccessibilityService) {
             KeyEvent.ACTION_UP -> {
                 held = false
                 main.removeCallbacks(holdRunnable)
-                if (!holdStarted) {
-                    EventLog.add("essential  short press -> open Claude")
-                    openClaude()
+                if (passThrough) {
+                    lastShortUpAt = 0L
+                } else if (!holdStarted) {
+                    // Wait until Nothing's 2 s window has passed, so tap-then-press can still reach Essential Space.
+                    lastShortUpAt = SystemClock.uptimeMillis()
+                    main.postDelayed(shortPressRunnable, ARM_MS)
                 } else {
                     EventLog.add("essential  released after ${SystemClock.uptimeMillis() - downAt} ms")
                     release()
@@ -79,6 +99,7 @@ class EssentialKey(private val svc: AccessibilityService) {
     fun onWindow(pkg: String?) {
         if (pkg != ESSENTIAL_PKG) return
         if (SystemClock.uptimeMillis() - lastKeyAt > 3000) return
+        if (passThrough) return
         if (!Prefs.essentialCloseOverlay(svc)) {
             EventLog.add("essential  Essential Space still opened (auto-close is off)")
             return

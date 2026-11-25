@@ -27,7 +27,16 @@ Tool names appear as `mcp__phone__<name>`. If one isn't loaded, find it with Too
 **not** the calendar. If it isn't there, the Phone connector may be off in this chat, or the chat started
 before the tool existed.
 
-## What's in progress: Essential Key hold-to-talk
+## Essential Key hold-to-talk (done, working)
+- Key arrives as KEYCODE_UNKNOWN code 0, **scan 250**. Nothing's system opens Essential Space
+  (`com.nothing.ntessentialrecorder`) on key-down *before* accessibility sees it, so consuming the key can't stop it.
+- Fix: Nothing setting **Intelligence toolkit → Essential Key Settings → "Activate with Single Tap Before Use" = ON**.
+  Then a lone press only arms the key; Phone Bridge handles it. Tap + press again within 2 s = Essential Space.
+- App (`EssentialKey.kt`, setting "4. Essential Key", notification toggle): hold = open Claude + tap "Start speech
+  input", release = tap "Stop dictation". Single tap opens Claude after the 2 s window. A second press within 2 s is
+  left to Essential Space. Voice method "hold the reply box" exists too but is untested.
+
+## Original plan (history)
 **Goal:** holding the phone's **Essential Key** (Nothing hardware button) should open Claude and start voice
 input, so his speech goes to Claude. Right now a hold starts Nothing's own Essential Space dictation. That's
 fine to keep, but **never block or consume the key**, so the system isn't confused.
